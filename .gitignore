@@ -1,0 +1,37 @@
+# --- Python ---
+# Ignore the virtual environment folder
+venv/
+env/
+ENV/
+bin/
+lib/
+# Ignore compiled Python files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Environment & Secrets ---
+# NEVER upload your secrets or local configs
+.env
+.flaskenv
+*.json
+# If you create a service account key file locally, ignore it
+*-key.json
+
+# --- VS Code & Editors ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Google Cloud & OS ---
+# Ignore local gcloud configs or logs
+.gcloud/
+.gsutil/
+.ds_store
+Thumbs.db
+
+# --- Project Specific ---
+# Ignore data files if they are large
+*.csv
+*.sqlite3

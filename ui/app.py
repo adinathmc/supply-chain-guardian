@@ -5,6 +5,7 @@ import pandas as pd
 import sys
 import os
 import json
+import requests
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -201,8 +202,21 @@ with tab1:
         with st.chat_message("assistant"):
             with st.spinner("Guardian is thinking..."):
                 try:
-                    # Try deployed agent first
-                    if 'deployed_agent' in st.session_state:
+                    # Prefer backend API if configured
+                    backend_api = os.getenv("BACKEND_API_URL")
+                    if backend_api:
+                        try:
+                            resp = requests.post(
+                                backend_api.rstrip("/") + "/query",
+                                json={"input": prompt},
+                                timeout=30,
+                            )
+                            resp.raise_for_status()
+                            response = resp.json().get("response", "")
+                        except Exception as api_err:
+                            response = f"⚠️ Backend API error: {api_err}"
+                    # Try deployed agent directly
+                    elif 'deployed_agent' in st.session_state:
                         response = st.session_state['deployed_agent'].query(input=prompt)
                     # Fallback to local agent
                     elif LOCAL_AGENT_AVAILABLE:

@@ -5,6 +5,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 from contextlib import contextmanager
+from google.cloud.alloydb.connector import Connector, IPTypes
+import pg8000
 
 Base = declarative_base()
 
@@ -87,14 +89,57 @@ class DatabaseManager:
     """Manages database connections and operations."""
     
     def __init__(self, connection_string: str = None):
-        """Initialize database manager with connection string."""
-        self.connection_string = connection_string or os.getenv(
-            "DB_CONNECTION_STRING",
-            "sqlite:///supply_chain.db"  # Fallback to SQLite for local testing
-        )
-        self.engine = create_engine(self.connection_string, echo=False)
+        """Initialize database manager with connection string or AlloyDB config."""
+        
+        self.connection_string = connection_string
+        
+        # AlloyDB Configuration
+        self.alloydb_project = os.getenv("ALLOYDB_PROJECT")
+        self.alloydb_region = os.getenv("ALLOYDB_REGION")
+        self.alloydb_cluster = os.getenv("ALLOYDB_CLUSTER")
+        self.alloydb_instance = os.getenv("ALLOYDB_INSTANCE")
+        self.db_name = os.getenv("DB_NAME", "postgres")
+        self.db_user = os.getenv("DB_USER", "postgres")
+        self.db_pass = os.getenv("DB_PASS", "supplychain123") # Default for demo
+        
+        if self.alloydb_cluster and self.alloydb_instance:
+             self.engine = self._init_alloydb_engine()
+        else:
+            # Fallback to local SQLite or provided connection string
+            self.connection_string = self.connection_string or os.getenv(
+                "DB_CONNECTION_STRING",
+                "sqlite:///supply_chain.db"
+            )
+            self.engine = create_engine(self.connection_string, echo=False)
+
         # Keep objects usable after session commit/close (Streamlit reads outside session)
         self.SessionLocal = sessionmaker(bind=self.engine, expire_on_commit=False)
+
+    def _init_alloydb_engine(self):
+        """Initialize connection to AlloyDB."""
+        print(f"🔌 Connecting to AlloyDB: {self.alloydb_cluster}...")
+        
+        # Initialize Connector
+        connector = Connector()
+
+        def getconn():
+            conn = connector.connect(
+                f"projects/{self.alloydb_project}/locations/{self.alloydb_region}/clusters/{self.alloydb_cluster}/instances/{self.alloydb_instance}",
+                "pg8000",
+                user=self.db_user,
+                password=self.db_pass,
+                db=self.db_name,
+                ip_type=IPTypes.PUBLIC  # Use IP_TYPES.PRIVATE for internal Cloud Run
+            )
+            return conn
+
+        # Create engine with the connector
+        engine = create_engine(
+            "postgresql+pg8000://",
+            creator=getconn,
+            echo=False
+        )
+        return engine
     
     def create_tables(self):
         """Create all tables in the database."""

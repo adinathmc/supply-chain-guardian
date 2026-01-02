@@ -4,6 +4,7 @@ import time
 import pandas as pd
 import sys
 import os
+import json
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -210,8 +211,19 @@ with tab1:
                     else:
                         response = "⚠️ No agent available. Please deploy or configure local agent."
                     
-                    st.markdown(response)
-                    st.session_state.messages.append({"role": "assistant", "content": response})
+                    # Try to parse as JSON and display nicely
+                    try:
+                        response_json = json.loads(response)
+                        # If it's a list of dicts, show as table and JSON
+                        if isinstance(response_json, list) and response_json and isinstance(response_json[0], dict):
+                            st.dataframe(response_json, use_container_width=True)
+                        # Always show the structured JSON view too
+                        st.json(response_json)
+                        st.session_state.messages.append({"role": "assistant", "content": response})
+                    except (json.JSONDecodeError, ValueError):
+                        # Not JSON, display as markdown
+                        st.markdown(response)
+                        st.session_state.messages.append({"role": "assistant", "content": response})
                 except Exception as e:
                     st.error(f"Error: {e}")
 
@@ -426,11 +438,17 @@ if prompt := st.chat_input("Ask about stock levels or supplier risks..."):
             else:
                 try:
                     # THE REAL CONNECTION POINT
-                    # THE REAL CONNECTION POINT
-                    from vertexai.preview import reasoning_engines
-                    remote_agent = reasoning_engines.ReasoningEngine(agent_id)
-                    full_response = remote_agent.query(input=prompt)
-                    # full_response = f"Simulating connection to deployed agent: {agent_id}..." 
+                    if agent_id:
+                        from vertexai.preview import reasoning_engines
+                        remote_agent = reasoning_engines.ReasoningEngine(agent_id)
+                        full_response = remote_agent.query(input=prompt)
+                    elif LOCAL_AGENT_AVAILABLE:
+                        # Fallback to local (in-container) execution on Cloud Run
+                        local_guardian = get_supply_chain_guardian()
+                        full_response = local_guardian.query(input=prompt)
+                    else:
+                        full_response = "⚠️ No agent configured. Please set AGENT_RESOURCE_NAME or ensure code is deployed correctly."
+
                 except Exception as e:
                     full_response = f"❌ Error connecting to agent: {str(e)}"
 

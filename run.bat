@@ -16,6 +16,13 @@ if not exist "virtualenv\Scripts\activate.bat" (
 REM Activate virtualenv
 echo Activating virtual environment...
 call virtualenv\Scripts\activate.bat
+REM Set Google Cloud authentication (if service-account.json exists)
+if exist "service-account.json" (
+    echo Setting up authentication with service-account.json...
+    set GOOGLE_APPLICATION_CREDENTIALS=%cd%\service-account.json
+    echo.
+)
+
 echo.
 
 REM Check if requirements are installed
@@ -113,3 +120,5 @@ goto menu
 echo.
 echo Thank you for using Supply Chain Guardian!
 echo.
+
+

@@ -1,0 +1,23 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/supply-chain-guardian:$SHORT_SHA', '.']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/supply-chain-guardian:$SHORT_SHA']
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |-
+        gcloud run deploy supply-chain-guardian \
+          --image gcr.io/$PROJECT_ID/supply-chain-guardian:$SHORT_SHA \
+          --region ${_REGION:-us-central1} \
+          --platform managed \
+          --allow-unauthenticated
+
+images:
+  - 'gcr.io/$PROJECT_ID/supply-chain-guardian:$SHORT_SHA'
+
+substitutions:
+  _REGION: 'us-central1'

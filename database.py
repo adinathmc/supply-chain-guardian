@@ -93,7 +93,8 @@ class DatabaseManager:
             "sqlite:///supply_chain.db"  # Fallback to SQLite for local testing
         )
         self.engine = create_engine(self.connection_string, echo=False)
-        self.SessionLocal = sessionmaker(bind=self.engine)
+        # Keep objects usable after session commit/close (Streamlit reads outside session)
+        self.SessionLocal = sessionmaker(bind=self.engine, expire_on_commit=False)
     
     def create_tables(self):
         """Create all tables in the database."""

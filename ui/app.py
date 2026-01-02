@@ -43,6 +43,16 @@ st.markdown("""
         border-radius: 10px;
         border-left: 5px solid #1f77b4;
     }
+    /* Force alert text to render in black for readability */
+    .alert-high, .alert-medium {
+        color: #000000;
+    }
+    /* Sidebar alert summary: make metric text white only inside sidebar */
+    [data-testid="stSidebar"] [data-testid="stMetricLabel"],
+    [data-testid="stSidebar"] [data-testid="stMetricValue"],
+    [data-testid="stSidebar"] [data-testid="stMetricDelta"] {
+        color: #ffffff !important;
+    }
     .alert-high {
         background-color: #ffebee;
         padding: 10px;
@@ -156,7 +166,7 @@ with st.sidebar:
 
 # --- MAIN INTERFACE ---
 st.title("Supply Chain Guardian AI")
-st.caption("🚀 Intelligent monitoring of global inventory, risks, and market trends")
+st.caption("Intelligent monitoring of global inventory, risks, and market trends")
 
 # Latest agent id from sidebar (if provided)
 agent_id = st.session_state.get("agent_resource_name")

@@ -137,6 +137,9 @@ with st.sidebar:
             placeholder="projects/.../reasoningEngines/...",
             help="Paste the resource name from deploy.py output"
         )
+        # Persist the latest agent resource name for chat usage
+        if agent_resource_name:
+            st.session_state["agent_resource_name"] = agent_resource_name.strip()
         if st.button("Connect to Deployed Agent"):
             if agent_resource_name and AGENT_AVAILABLE:
                 try:
@@ -154,6 +157,9 @@ with st.sidebar:
 # --- MAIN INTERFACE ---
 st.title("Supply Chain Guardian AI")
 st.caption("🚀 Intelligent monitoring of global inventory, risks, and market trends")
+
+# Latest agent id from sidebar (if provided)
+agent_id = st.session_state.get("agent_resource_name")
 
 # --- TABS ---
 tab1, tab2, tab3, tab4, tab5 = st.tabs([

@@ -2,10 +2,18 @@ import vertexai
 from vertexai.preview import reasoning_engines
 from main import get_supply_chain_guardian # This is your orchestrator function
 
-# 1. Configuration
-PROJECT_ID = "inventory-agent-x"
-LOCATION = "us-central1"
-STAGING_BUCKET = "gs://inventory-agent-x-staging-bucket"
+import os
+import sys
+
+# 1. Configuration - Load from environment
+PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
+LOCATION = os.getenv("GOOGLE_CLOUD_REGION", "us-central1")
+STAGING_BUCKET = os.getenv("STAGING_BUCKET")
+
+if not PROJECT_ID or not STAGING_BUCKET:
+    print("❌ Error: GOOGLE_CLOUD_PROJECT and STAGING_BUCKET environment variables must be set.")
+    print("  Tip: Create a .env file and use 'source .env' or set them manually.")
+    sys.exit(1)
 
 # 2. Initialize Vertex AI
 vertexai.init(project=PROJECT_ID, location=LOCATION, staging_bucket=STAGING_BUCKET)

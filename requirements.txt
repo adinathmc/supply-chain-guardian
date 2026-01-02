@@ -1,11 +1,15 @@
 # Vertex AI & Agent SDKs
 google-cloud-aiplatform[agent_engines,adk]
 google-cloud-storage
+google-cloud-pubsub
 
 # Database & Tools
 psycopg2-binary
 sqlalchemy
 pandas
+
+# External APIs
+requests
 
 # Frontend
 streamlit

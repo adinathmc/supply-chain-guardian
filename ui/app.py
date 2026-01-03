@@ -75,15 +75,32 @@ st.markdown("""
 # --- INITIALIZE SERVICES ---
 @st.cache_resource
 def init_services():
-    """Initialize database and services."""
-    try:
-        db = get_db_manager()
-        alerting = get_alerting_service()
-        weather = get_weather_service()
-        return db, alerting, weather
-    except Exception as e:
-        st.error(f"Error initializing services: {e}")
+    """Initialize database and services with timeout."""
+    import threading
+    
+    result = {"db": None, "alerting": None, "weather": None, "error": None}
+    
+    def _init():
+        try:
+            result["db"] = get_db_manager()
+            result["alerting"] = get_alerting_service()
+            result["weather"] = get_weather_service()
+        except Exception as e:
+            result["error"] = str(e)
+    
+    # Run initialization in a thread with timeout
+    thread = threading.Thread(target=_init, daemon=True)
+    thread.start()
+    thread.join(timeout=3)  # 3 second timeout
+    
+    if thread.is_alive():
+        # Initialization timed out, return None gracefully
         return None, None, None
+    
+    if result["error"]:
+        return None, None, None
+    
+    return result["db"], result["alerting"], result["weather"]
 
 db, alerting, weather = init_services()
 
@@ -107,21 +124,30 @@ with st.sidebar:
     st.markdown("---")
     
     # Real-time Stats
-    if db:
+    if db and db.connection_established:
         st.subheader("Live Inventory")
         try:
             products = db.get_all_products()
-            df_inventory = pd.DataFrame([
-                {
-                    "Product": p.id,
-                    "Stock": p.stock_level,
-                    "Status": "🚨" if p.status == "Critical" else "⚠️" if p.status == "Low" else "✅"
-                }
-                for p in products
-            ])
-            st.dataframe(df_inventory, use_container_width=True, hide_index=True)
+            if products:
+                df_inventory = pd.DataFrame([
+                    {
+                        "Product": p.id,
+                        "Stock": p.stock_level,
+                        "Status": "🚨" if p.status == "Critical" else "⚠️" if p.status == "Low" else "✅"
+                    }
+                    for p in products
+                ])
+                st.dataframe(df_inventory, use_container_width=True, hide_index=True)
+            else:
+                st.info("No products found in database")
         except Exception as e:
-            st.error(f"Error loading inventory: {e}")
+            st.warning(f"⚠️ Could not load inventory: {str(e)[:50]}...")
+    elif db:
+        st.subheader("Live Inventory")
+        st.info("💾 Database not connected. Using API for queries.")
+    else:
+        st.subheader("Live Inventory")
+        st.warning("⚠️ No database connection available")
     
     st.markdown("---")
     

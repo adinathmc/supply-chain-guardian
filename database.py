@@ -1,6 +1,6 @@
 """Database models and connection management for Supply Chain Guardian."""
 import os
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Text
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Text, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
@@ -92,6 +92,9 @@ class DatabaseManager:
         """Initialize database manager with connection string or AlloyDB config."""
         
         self.connection_string = connection_string
+        self.engine = None
+        self.SessionLocal = None
+        self.connection_established = False
         
         # AlloyDB Configuration
         self.alloydb_project = os.getenv("ALLOYDB_PROJECT")
@@ -102,18 +105,91 @@ class DatabaseManager:
         self.db_user = os.getenv("DB_USER", "postgres")
         self.db_pass = os.getenv("DB_PASS", "supplychain123") # Default for demo
         
-        if self.alloydb_cluster and self.alloydb_instance:
-             self.engine = self._init_alloydb_engine()
-        else:
-            # Fallback to local SQLite or provided connection string
-            self.connection_string = self.connection_string or os.getenv(
-                "DB_CONNECTION_STRING",
-                "sqlite:///supply_chain.db"
-            )
-            self.engine = create_engine(self.connection_string, echo=False)
-
-        # Keep objects usable after session commit/close (Streamlit reads outside session)
-        self.SessionLocal = sessionmaker(bind=self.engine, expire_on_commit=False)
+        # In Cloud Run, always fallback to SQLite (database queries go through API)
+        if os.getenv("K_SERVICE"):
+            print(f"☁️ Running in Cloud Run - using SQLite, queries should go through BACKEND_API")
+            self.connection_string = "sqlite:///supply_chain.db"
+            self.engine = create_engine(self.connection_string, echo=False, connect_args={"timeout": 5})
+            self.SessionLocal = sessionmaker(bind=self.engine, expire_on_commit=False)
+            self.connection_established = False
+            # Initialize schema on first run
+            Base.metadata.create_all(self.engine)
+            return
+        
+        # Priority: 1. connection_string param, 2. DB_CONNECTION_STRING env, 3. AlloyDB, 4. SQLite
+        try:
+            if self.connection_string:
+                # Explicit connection string provided
+                print(f"🔌 Using provided connection string")
+                self._create_engine_with_timeout(self.connection_string)
+            elif os.getenv("DB_CONNECTION_STRING"):
+                # Use environment variable connection string
+                conn_str = os.getenv("DB_CONNECTION_STRING")
+                self.connection_string = conn_str
+                print(f"🔌 Using DB_CONNECTION_STRING from environment")
+                self._create_engine_with_timeout(conn_str)
+            elif self.alloydb_cluster and self.alloydb_instance:
+                # Use AlloyDB with Connector
+                print(f"🔌 Connecting to AlloyDB: {self.alloydb_cluster}")
+                self.engine = self._init_alloydb_engine()
+                self._test_connection()
+            else:
+                # Fallback to local SQLite
+                print(f"🔌 Using local SQLite database")
+                self.connection_string = "sqlite:///supply_chain.db"
+                self._create_engine_with_timeout(self.connection_string)
+            
+            # Keep objects usable after session commit/close (Streamlit reads outside session)
+            if self.engine:
+                self.SessionLocal = sessionmaker(bind=self.engine, expire_on_commit=False)
+                # Initialize schema
+                Base.metadata.create_all(self.engine)
+                
+        except Exception as e:
+            print(f"❌ Database initialization error: {e}")
+            print(f"⚠️ Falling back to SQLite")
+            self.connection_string = "sqlite:///supply_chain.db"
+            self.engine = create_engine(self.connection_string, echo=False, connect_args={"timeout": 5})
+            self.SessionLocal = sessionmaker(bind=self.engine, expire_on_commit=False)
+            # Initialize schema
+            Base.metadata.create_all(self.engine)
+            self.connection_established = False
+    
+    def _create_engine_with_timeout(self, conn_str: str):
+        """Create engine with connection timeout."""
+        try:
+            # Add connection pool settings and timeout for PostgreSQL
+            if "postgresql" in conn_str:
+                self.engine = create_engine(
+                    conn_str,
+                    echo=False,
+                    pool_pre_ping=True,  # Verify connections before using
+                    connect_args={
+                        "connect_timeout": 5,  # 5 second timeout for initial connection
+                    }
+                )
+            else:
+                # SQLite
+                self.engine = create_engine(conn_str, echo=False, connect_args={"timeout": 5})
+            
+            # Test connection immediately with timeout
+            self._test_connection()
+        except Exception as e:
+            print(f"❌ Connection failed: {e}")
+            raise
+    
+    
+    def _test_connection(self):
+        """Test if database connection works."""
+        try:
+            with self.engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            print(f"✅ Database connection successful")
+            self.connection_established = True
+        except Exception as e:
+            print(f"❌ Connection test failed: {e}")
+            self.connection_established = False
+            raise
 
     def _init_alloydb_engine(self):
         """Initialize connection to AlloyDB."""
